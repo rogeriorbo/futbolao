@@ -1,0 +1,193 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (UID)
+// Fields:
+//   - uid: string (required)
+//   - displayName: string (required)
+//   - photoURL: string (optional)
+//   - email: string (required)
+//   - totalPoints: number (optional)
+//
+// Collection: pools
+// Document ID: poolId
+// Fields:
+//   - id: string (optional)
+//   - name: string (required)
+//   - ownerId: string (required)
+//   - code: string (required)
+//   - participants: list (required)
+//
+// Collection: matches
+// Document ID: matchId
+// Fields:
+//   - id: string (optional)
+//   - teamA: string (required)
+//   - teamB: string (required)
+//   - date: string (required, ISO 8601)
+//   - scoreA: number (optional)
+//   - scoreB: number (optional)
+//   - status: string (required, enum: ["scheduled", "finished"])
+//
+// Collection: pools/{poolId}/bets
+// Document ID: betId
+// Fields:
+//   - id: string (optional)
+//   - userId: string (required)
+//   - poolId: string (required)
+//   - matchId: string (required)
+//   - predictionA: number (required)
+//   - predictionB: number (required)
+//   - pointsEarned: number (optional)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPoolParticipant(poolId) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/pools/$(poolId)) && (
+        request.auth.uid in get(/databases/$(database)/documents/pools/$(poolId)).data.participants ||
+        request.auth.uid == get(/databases/$(database)/documents/pools/$(poolId)).data.ownerId
+      );
+    }
+
+    function isPoolOwner(poolId) {
+      return isAuthenticated() && request.auth.uid == get(/databases/$(database)/documents/pools/$(poolId)).data.ownerId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email']);
+    }
+
+    function isValidPool(data) {
+      return data.keys().hasAll(['name', 'ownerId', 'code', 'participants']);
+    }
+
+    function isValidBet(data) {
+      return data.keys().hasAll(['userId', 'poolId', 'matchId', 'predictionA', 'predictionB']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.poolId is string &&
+             data.matchId is string &&
+             data.predictionA is number && data.predictionA >= 0 && data.predictionA < 100 &&
+             data.predictionB is number && data.predictionB >= 0 && data.predictionB < 100;
+    }
+
+    function isValidEarlyPrediction(data) {
+      return data.keys().hasAll(['userId', 'poolId', 'champion', 'vice']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.poolId is string &&
+             data.champion is string && data.champion.size() > 0 &&
+             data.vice is string && data.vice.size() > 0;
+    }
+
+    function tournamentHasStarted() {
+      // World Cup 2026 starts on June 11, 2026
+      return request.time >= timestamp.date(2026, 6, 11);
+    }
+
+    function isValidResult(data) {
+      return data.keys().hasAll(['scoreA', 'scoreB', 'status']) &&
+             data.scoreA is number && data.scoreA >= 0 && data.scoreA < 100 &&
+             data.scoreB is number && data.scoreB >= 0 && data.scoreB < 100 &&
+             data.status in ['live', 'finished'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /pools/{poolId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPool(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (isPoolOwner(poolId) && (
+          // Allow pool owner to update everything or specific fields
+          (isValidPool(request.resource.data) && request.resource.data.ownerId == resource.data.ownerId) ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasAny(['participants', 'pendingParticipants', 'paidParticipants', 'prizeDistribution', 'entryFee', 'status']))
+        )) ||                
+        // Allow anyone to join
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) && 
+         request.resource.data.participants.size() <= 1000 &&
+         request.auth.uid in request.resource.data.participants) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingParticipants']) && 
+         request.resource.data.pendingParticipants.size() <= 1000 &&
+         request.auth.uid in request.resource.data.pendingParticipants)
+      );
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+      allow write: if false; // Only admin (manual/system) can update matches
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+                    request.auth.token.email == 'deiorbo@gmail.com';
+    }
+
+    match /standings/{groupId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+                    request.auth.token.email == 'deiorbo@gmail.com';
+    }
+
+    match /results/{matchId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+                    request.auth.token.email == 'deiorbo@gmail.com' && 
+                    request.auth.token.email_verified == true &&
+                    isValidResult(request.resource.data);
+    }
+
+    match /pools/{poolId}/bets/{betId} {
+      allow get: if isPoolParticipant(poolId);
+      allow list: if isAuthenticated();
+      allow create: if isPoolParticipant(poolId) && isValidBet(request.resource.data);
+      allow update: if isPoolParticipant(poolId) && isValidBet(request.resource.data) && request.resource.data.userId == resource.data.userId;
+    }
+
+    match /pools/{poolId}/earlyPredictions/{userId} {
+      allow get: if isPoolParticipant(poolId);
+      allow list: if isAuthenticated();
+      allow create: if isPoolParticipant(poolId) && isOwner(userId) && isValidEarlyPrediction(request.resource.data) && !tournamentHasStarted();
+      allow update: if isPoolParticipant(poolId) && isOwner(userId) && isValidEarlyPrediction(request.resource.data) && !tournamentHasStarted();
+    }
+
+    match /pools/{poolId}/messages/{messageId} {
+      allow read: if isPoolParticipant(poolId);
+      allow create: if isPoolParticipant(poolId) && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isPoolParticipant(poolId) && (
+        (resource.data.userId == request.auth.uid) || 
+        (request.auth.token.email == 'deiorbo@gmail.com')
+      );
+    }
+
+    match /pools/{poolId}/presence/{userId} {
+      allow read: if isPoolParticipant(poolId);
+      allow write: if isPoolParticipant(poolId) && userId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Bolão Copa 2026",
+  "description": "Plataforma para criar e participar de bolões da Copa do Mundo de 2026, com ranking em tempo real, integração com API-Football para placares automáticos e regras personalizadas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with points and identity.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string" },
+        "totalPoints": { "type": "number" }
+      },
+      "required": ["uid", "displayName", "email"]
+    },
+    "Pool": {
+      "title": "Pool",
+      "description": "A group of users participating in a betting pool.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "code": { "type": "string" },
+        "participants": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "plan": { "type": "string", "enum": ["free", "pro"] },
+        "limit": { "type": "number" },
+        "visibility": { "type": "string", "enum": ["public", "private"] },
+        "entryFee": { "type": "number" },
+        "prizeModel": { "type": "string", "enum": ["classic", "aggressive", "community"] },
+        "prizeDistribution": {
+          "type": "array",
+          "items": { 
+            "type": "object",
+            "properties": {
+              "position": { "type": "number" },
+              "value": { "type": "number" }
+            }
+          }
+        },
+        "scoringSystem": {
+          "type": "object",
+          "properties": {
+            "exact": { "type": "number" },
+            "winnerGoals": { "type": "number" },
+            "winnerDiff": { "type": "number" },
+            "winnerLoserGoals": { "type": "number" },
+            "winnerOnly": { "type": "number" },
+            "champion": { "type": "number" },
+            "vice": { "type": "number" }
+          }
+        },
+        "advancedSettings": {
+          "type": "object",
+          "properties": {
+            "shieldedBets": { "type": "boolean" },
+            "multiplier": { "type": "boolean" },
+            "championBonus": { "type": "number" },
+            "viceBonus": { "type": "number" }
+          }
+        }
+      },
+      "required": ["name", "ownerId", "code", "plan", "visibility"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A World Cup match.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "teamA": { "type": "string" },
+        "teamB": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "scoreA": { "type": "number" },
+        "scoreB": { "type": "number" },
+        "status": { "type": "string", "enum": ["scheduled", "finished"] }
+      },
+      "required": ["teamA", "teamB", "date", "status"]
+    },
+    "Bet": {
+      "title": "Bet",
+      "description": "A user's prediction for a match within a pool.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "poolId": { "type": "string" },
+        "matchId": { "type": "string" },
+        "predictionA": { "type": "number" },
+        "predictionB": { "type": "number" },
+        "pointsEarned": { "type": "number" }
+      },
+      "required": ["userId", "poolId", "matchId", "predictionA", "predictionB"]
+    },
+    "EarlyPrediction": {
+      "title": "Early Prediction",
+      "description": "A user's prediction for the champion and runner-up of the tournament.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "poolId": { "type": "string" },
+        "champion": { "type": "string" },
+        "vice": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "poolId", "champion", "vice"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "Official match result.",
+      "type": "object",
+      "properties": {
+        "scoreA": { "type": "number" },
+        "scoreB": { "type": "number" },
+        "status": { "type": "string", "enum": ["live", "finished"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["scoreA", "scoreB", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/pools/{poolId}": {
+      "schema": "Pool",
+      "description": "Betting pools."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "World Cup matches."
+    },
+    "/results/{matchId}": {
+      "schema": "Result",
+      "description": "Official scores and statuses."
+    },
+    "/pools/{poolId}/bets/{betId}": {
+      "schema": "Bet",
+      "description": "Bets within a specific pool."
+    },
+    "/pools/{poolId}/earlyPredictions/{userId}": {
+      "schema": "EarlyPrediction",
+      "description": "Early predictions for champion and vice per user."
+    }
+  }
+}

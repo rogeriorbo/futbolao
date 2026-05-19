@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-brand: #eab308;
+}
+
+.theme-black {
+  background-color: #000;
+  color: #e2e8f0;
+}
+
+.theme-black .bg-white {
+  background-color: #111;
+  color: #e2e8f0;
+}
+.theme-black .bg-slate-50 {
+  background-color: #0a0a0a;
+}
+.theme-black .bg-slate-100 {
+  background-color: #1a1a1a;
+}
+.theme-black .bg-slate-200 {
+  background-color: #262626;
+}
+
+.theme-black .bg-slate-800,
+.theme-black .bg-slate-900 {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.theme-black .bg-slate-900.text-white {
+  color: #0f172a;
+}
+.theme-black .bg-slate-800.text-white {
+  color: #0f172a;
+}
+
+.theme-black .text-slate-900 {
+  color: #f8fafc;
+}
+.theme-black .text-slate-800 {
+  color: #f1f5f9;
+}
+.theme-black .text-slate-700 {
+  color: #e2e8f0;
+}
+.theme-black .text-slate-600 {
+  color: #cbd5e1;
+}
+.theme-black .text-slate-500 {
+  color: #94a3b8;
+}
+.theme-black .text-slate-400 {
+  color: #64748b;
+}
+
+.theme-black .border-slate-50 {
+  border-color: #111;
+}
+.theme-black .border-slate-100 {
+  border-color: #222;
+}
+.theme-black .border-slate-200 {
+  border-color: #333;
+}
+.theme-black .border-slate-300 {
+  border-color: #444;
+}
+
+.theme-black .divide-slate-50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #111;
+}
+.theme-black .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #222;
+}
+
+.theme-black .shadow-sm,
+.theme-black .shadow-md,
+.theme-black .shadow-lg,
+.theme-black .shadow-xl {
+  box-shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.05), 0 2px 4px -1px rgba(255, 255, 255, 0.03);
+}
+
+@layer base {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+  }
+}
