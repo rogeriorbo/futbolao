@@ -356,19 +356,30 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const userDoc = await getDoc(doc(db, 'users', u.uid));
-        if (!userDoc.exists()) {
-          const newProfile: UserProfile = {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', u.uid));
+          if (!userDoc.exists()) {
+            const newProfile: UserProfile = {
+              uid: u.uid,
+              displayName: u.displayName || 'Usuário',
+              photoURL: u.photoURL || undefined,
+              email: u.email || '',
+              totalPoints: 0
+            };
+            await setDoc(doc(db, 'users', u.uid), newProfile);
+            setProfile(newProfile);
+          } else {
+            setProfile(userDoc.data() as UserProfile);
+          }
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          // Fallback profile to bypass white screen
+          setProfile({
             uid: u.uid,
             displayName: u.displayName || 'Usuário',
-            photoURL: u.photoURL || undefined,
             email: u.email || '',
             totalPoints: 0
-          };
-          await setDoc(doc(db, 'users', u.uid), newProfile);
-          setProfile(newProfile);
-        } else {
-          setProfile(userDoc.data() as UserProfile);
+          });
         }
         fetchUserPools(u.uid);
       } else {

@@ -310,7 +310,7 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
                <span className="text-[10px] font-bold text-slate-400 uppercase">Emojis</span>
                <button onClick={() => setShowEmojiPicker(false)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400"><X className="w-4 h-4"/></button>
              </div>
-             <Picker onEmojiClick={onEmojiClick} autoFocusSearch={false} theme="light" height={350} width={300} />
+             <Picker onEmojiClick={onEmojiClick} autoFocusSearch={false} theme={"light" as any} height={350} width={300} />
           </div>
         )}
         <form onSubmit={handleSendMessage} className="flex items-center gap-1 p-2 bg-white rounded-full mx-2 mb-2 border border-slate-200">
