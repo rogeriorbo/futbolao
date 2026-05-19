@@ -39,7 +39,7 @@ const mapStatus = (apiStatus: string) => {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT) : 3000;
 
   app.use(express.json());
 
