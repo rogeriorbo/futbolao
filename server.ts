@@ -39,7 +39,8 @@ const mapStatus = (apiStatus: string) => {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // Use CUSTOM_PORT if aapanel needs a different port (like 3001)
+  const PORT = process.env.CUSTOM_PORT ? parseInt(process.env.CUSTOM_PORT) : 3000;
 
   app.use(express.json());
 
