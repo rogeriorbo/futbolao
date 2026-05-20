@@ -137,11 +137,13 @@ export const PoolDetailModal: React.FC<PoolDetailModalProps> = ({ isOpen, onClos
               <Trophy className="w-5 h-5 text-brand" /> {pool.name}
             </h3>
             <div className="flex items-center gap-2">
-              {isOwner && (
+              {isOwner ? (
                 <>
                   <button onClick={() => setIsEditModalOpen(true)} className="text-[10px] font-black uppercase text-white bg-brand px-3 py-1.5 rounded-lg hover:bg-brand/90">EDITAR</button>
                   <button onClick={() => setShowDeleteConfirm(true)} className="text-[10px] font-black uppercase text-white bg-red-500 px-3 py-1.5 rounded-lg hover:bg-red-600">EXCLUIR</button>
                 </>
+              ) : (
+                <button onClick={leavePool} className="text-[10px] font-black uppercase text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100">CANCELAR/SAIR</button>
               )}
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-50">
                 <X className="w-6 h-6" />

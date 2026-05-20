@@ -496,7 +496,7 @@ export const CreatePoolModal: React.FC<CreatePoolModalProps> = ({ isOpen, onClos
               onClick={onClose}
               className="px-6 py-5 rounded-2xl font-black text-slate-500 bg-slate-900 hover:text-white text-[10px] uppercase tracking-[0.2em] transition-all"
             >
-              Sair
+              {poolToEdit ? 'Cancelar' : 'Sair'}
             </button>
           )}
           <button 

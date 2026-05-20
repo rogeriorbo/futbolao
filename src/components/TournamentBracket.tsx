@@ -6,9 +6,10 @@ interface TournamentBracketProps {
   matches: Match[];
   userBets: Bet[];
   onPlaceBet: (matchId: string, predA: number, predB: number) => void;
+  onShareBet?: (match: Match, predA: number, predB: number) => void;
 }
 
-export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, userBets, onPlaceBet }) => {
+export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, userBets, onPlaceBet, onShareBet }) => {
   // It's going to be a large horizontal scrolling container with 16-8-4-2-1 structure.
   
   const [zoom, setZoom] = React.useState(1);
@@ -87,7 +88,7 @@ export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, u
           </div>
           {matches32.map(match => (
             <div key={match.id} className="relative z-10 shrink-0">
-               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} />
+               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} onShareBet={onShareBet} />
             </div>
           ))}
         </div>
@@ -99,7 +100,7 @@ export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, u
           </div>
           {matches16.map(match => (
             <div key={match.id} className="relative z-10 shrink-0">
-               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} />
+               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} onShareBet={onShareBet} />
             </div>
           ))}
         </div>
@@ -111,7 +112,7 @@ export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, u
           </div>
           {matches8.map(match => (
             <div key={match.id} className="relative z-10 shrink-0">
-               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} />
+               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} onShareBet={onShareBet} />
             </div>
           ))}
         </div>
@@ -123,7 +124,7 @@ export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, u
           </div>
           {matches4.map(match => (
             <div key={match.id} className="relative z-10 shrink-0">
-               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} />
+               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} onShareBet={onShareBet} />
             </div>
           ))}
         </div>
@@ -135,7 +136,7 @@ export const TournamentBracket: React.FC<TournamentBracketProps> = ({ matches, u
           </div>
           {matches2.map(match => (
             <div key={match.id} className="relative z-10 shrink-0 shadow-lg shadow-brand/10 rounded-2xl ring-2 ring-brand/10">
-               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} />
+               <MatchCard match={match} bet={userBets.find(b => b.matchId === match.id)} onPlaceBet={onPlaceBet} onShareBet={onShareBet} />
             </div>
           ))}
         </div>

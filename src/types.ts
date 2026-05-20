@@ -5,6 +5,9 @@ export interface UserProfile {
   email: string;
   totalPoints?: number;
   theme?: 'light' | 'dark' | 'black';
+  notificationsEnabled?: boolean;
+  role?: string;
+  isAdmin?: boolean;
 }
 
 export interface Pool {

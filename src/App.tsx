@@ -41,7 +41,10 @@ import {
   Mail,
   Zap,
   Settings,
-  MessageCircle
+  MessageCircle,
+  Search,
+  Filter,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -65,6 +68,8 @@ import { EarlyPredictionCard } from './components/EarlyPredictionCard';
 import { PoolChat } from './components/PoolChat';
 import { TournamentBracket } from './components/TournamentBracket';
 import { TEAMS } from './data/teams';
+import { usePushNotifications } from './hooks/usePushNotifications';
+import confetti from 'canvas-confetti';
 
 // --- Constants & Mock Data ---
 const RULES = [
@@ -80,8 +85,9 @@ const RULES = [
 
 // --- Components ---
 
-const Navbar = ({ user, onLogin, onLogout, onEditProfile, onSync, isSyncing, onCheckLeagues, onCheckTeams, onCheckRounds, isCheckingLeagues }: { 
+const Navbar = ({ user, profile, onLogin, onLogout, onEditProfile, onSync, isSyncing, onCheckLeagues, onCheckTeams, onCheckRounds, isCheckingLeagues }: { 
   user: FirebaseUser | null, 
+  profile: UserProfile | null,
   onLogin: () => void, 
   onLogout: () => void,
   onEditProfile: () => void,
@@ -92,18 +98,18 @@ const Navbar = ({ user, onLogin, onLogout, onEditProfile, onSync, isSyncing, onC
   onCheckRounds: () => void,
   isCheckingLeagues: boolean
 }) => (
-  <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 p-3 sm:p-4 sticky top-0 z-50">
+  <nav className="bg-slate-950/95 backdrop-blur-md border-b border-slate-900/60 p-3 sm:p-4 sticky top-0 z-50">
     <div className="max-w-4xl mx-auto flex justify-between items-center">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center shadow-sm">
-          <Trophy className="text-yellow-400 w-5 h-5" />
+        <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center shadow-md border border-slate-800">
+          <Trophy className="text-yellow-400 w-5 h-5 animate-pulse" />
         </div>
-        <h1 className="text-sm sm:text-base font-black tracking-[0.2em] uppercase text-slate-900">Bolão 26</h1>
+        <h1 className="text-sm sm:text-base font-black tracking-[0.2em] uppercase text-white">Bolão 26</h1>
       </div>
       {user ? (
         <div className="flex items-center gap-2 sm:gap-3">
-          {user.email === 'deiorbo@gmail.com' && (
-            <div className="flex items-center gap-1">
+          {(user.email === 'deiorbo@gmail.com' || profile?.role === 'admin' || profile?.isAdmin) && (
+            <div className="flex items-center gap-1.5">
               <button 
                 onClick={onCheckLeagues}
                 disabled={isCheckingLeagues}
@@ -111,8 +117,8 @@ const Navbar = ({ user, onLogin, onLogout, onEditProfile, onSync, isSyncing, onC
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border",
                   isCheckingLeagues 
-                    ? "bg-slate-50 text-slate-400 border-slate-100" 
-                    : "bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100"
+                    ? "bg-slate-900 text-slate-500 border-slate-800" 
+                    : "bg-blue-950/60 text-blue-400 border-blue-900/40 hover:bg-blue-900 hover:text-blue-300"
                 )}
               >
                 {isCheckingLeagues ? <Loader2 className="w-3 h-3 animate-spin" /> : <Info className="w-3 h-3" />}
@@ -124,8 +130,8 @@ const Navbar = ({ user, onLogin, onLogout, onEditProfile, onSync, isSyncing, onC
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border",
                   isSyncing 
-                    ? "bg-slate-50 text-slate-400 border-slate-100" 
-                    : "bg-brand/10 text-brand border-brand/20 hover:bg-brand/20"
+                    ? "bg-slate-900 text-slate-500 border-slate-800" 
+                    : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/20"
                 )}
               >
                 {isSyncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
@@ -135,20 +141,20 @@ const Navbar = ({ user, onLogin, onLogout, onEditProfile, onSync, isSyncing, onC
           )}
           <div className="hidden sm:block text-right">
             <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Usuário</p>
-            <p className="text-xs font-bold text-slate-900">{user.displayName}</p>
+            <p className="text-xs font-bold text-white leading-tight">{profile?.displayName || user.displayName}</p>
           </div>
-          <img src={user.photoURL || ''} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 shadow-sm" referrerPolicy="no-referrer" />
-          <button onClick={onEditProfile} className="p-1.5 hover:bg-slate-50 rounded-full transition-colors text-slate-300 hover:text-slate-600" title="Editar Perfil">
+          <img src={profile?.photoURL || user.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName || user.displayName || '?'}`} alt="Profile" className="w-8 h-8 rounded-full border border-slate-800 shadow-sm" referrerPolicy="no-referrer" />
+          <button onClick={onEditProfile} className="p-1.5 hover:bg-slate-900 rounded-full transition-colors text-slate-400 hover:text-white" title="Editar Perfil">
             <Settings className="w-4 h-4" />
           </button>
-          <button onClick={onLogout} className="p-1.5 hover:bg-slate-50 rounded-full transition-colors text-slate-300 hover:text-slate-600" title="Sair">
+          <button onClick={onLogout} className="p-1.5 hover:bg-slate-900 rounded-full transition-colors text-slate-400 hover:text-white" title="Sair">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
       ) : (
         <button 
           onClick={onLogin}
-          className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 shadow-sm"
+          className="bg-brand text-slate-950 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand/90 transition-all active:scale-95 shadow-sm"
         >
           Entrar
         </button>
@@ -193,6 +199,10 @@ export default function App() {
   const [diagnosticSeason, setDiagnosticSeason] = useState<number>(2026);
   
   const [activeMatchesTab, setActiveMatchesTab] = useState<'fixtures' | 'table'>('fixtures');
+  const [matchSearchQuery, setMatchSearchQuery] = useState('');
+  const [showPendingBetsOnly, setShowPendingBetsOnly] = useState(false);
+
+  usePushNotifications(bets, matches, userPools, profile, profile?.notificationsEnabled || false);
 
   // Calculate group standings
   const getStandings = (group: string) => {
@@ -285,32 +295,81 @@ export default function App() {
   const [selectedRound, setSelectedRound] = useState<string>('Rodada 1');
   const [viewMode, setViewMode] = useState<'group' | 'round' | 'date'>('group');
 
+  const filteredMergedMatches = React.useMemo(() => {
+    return mergedMatches.filter(match => {
+      if (matchSearchQuery.trim() && (viewMode === 'round' || viewMode === 'date')) {
+        const queryStr = matchSearchQuery.toLowerCase();
+        const teamAName = ((TEAMS as any)[match.teamA]?.name || match.teamA).toLowerCase();
+        const teamBName = ((TEAMS as any)[match.teamB]?.name || match.teamB).toLowerCase();
+        const teamAShort = (match.teamAShort || '').toLowerCase();
+        const teamBShort = (match.teamBShort || '').toLowerCase();
+        const matchesSearch = teamAName.includes(queryStr) || teamBName.includes(queryStr) || teamAShort.includes(queryStr) || teamBShort.includes(queryStr);
+        if (!matchesSearch) return false;
+      }
+      
+      if (showPendingBetsOnly) {
+        const hasBet = bets.some(b => b.matchId === match.id && b.predictionA !== undefined && b.predictionB !== undefined);
+        if (hasBet) return false;
+      }
+      
+      return true;
+    });
+  }, [mergedMatches, matchSearchQuery, showPendingBetsOnly, bets, viewMode]);
+
   const matchesByGroup = React.useMemo(() => {
-    return mergedMatches.reduce((acc, match) => {
+    return filteredMergedMatches.reduce((acc, match) => {
       const stage = match.stage;
       if (!acc[stage]) acc[stage] = [];
       acc[stage].push(match);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [mergedMatches]);
+  }, [filteredMergedMatches]);
 
   const matchesByDate = React.useMemo(() => {
-    return mergedMatches.reduce((acc, match) => {
+    return filteredMergedMatches.reduce((acc, match) => {
       const date = match.date.split('T')[0];
       if (!acc[date]) acc[date] = [];
       acc[date].push(match);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [mergedMatches]);
+  }, [filteredMergedMatches]);
 
   const matchesByRound = React.useMemo(() => {
-    return mergedMatches.reduce((acc, match) => {
+    return filteredMergedMatches.reduce((acc, match) => {
       let roundLabel = match.round ? `Rodada ${match.round}` : (match.stage === 'Final' ? 'Final' : 'Mata-Mata');
       if (!acc[roundLabel]) acc[roundLabel] = [];
       acc[roundLabel].push(match);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [mergedMatches]);
+  }, [filteredMergedMatches]);
+
+  const leaderStats = React.useMemo(() => {
+    if (ranking.length === 0 || allPoolBets.length === 0) return null;
+    const leader = ranking[0];
+    const leaderBets = allPoolBets.filter(b => b.userId === leader.userId);
+    const finishedGlobalResults = Object.entries(globalResults).filter(([_, res]: [string, any]) => res.status === 'finished');
+    if (finishedGlobalResults.length === 0) return null;
+    
+    let exactHits = 0;
+    let totalFinishedParsed = 0;
+    
+    finishedGlobalResults.forEach(([matchId, res]: [string, any]) => {
+      const b = leaderBets.find(bet => bet.matchId === matchId);
+      if (b) {
+        totalFinishedParsed++;
+        if (b.predictionA === res.scoreA && b.predictionB === res.scoreB) {
+          exactHits++;
+        }
+      }
+    });
+    
+    return {
+      leaderName: leader.name,
+      exactHits,
+      totalGuesses: totalFinishedParsed,
+      rate: totalFinishedParsed > 0 ? Math.round((exactHits / totalFinishedParsed) * 100) : 0
+    };
+  }, [ranking, allPoolBets, globalResults]);
 
   const prizeCalculations = React.useMemo(() => {
     if (!selectedPool) return null;
@@ -349,7 +408,10 @@ export default function App() {
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'results');
     });
-    return () => unsubscribe();
+    return () => {
+      unsubStandings();
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -377,11 +439,11 @@ export default function App() {
           setProfile({
             uid: u.uid,
             displayName: u.displayName || 'Usuário',
+            photoURL: u.photoURL || undefined,
             email: u.email || '',
             totalPoints: 0
           });
         }
-        fetchUserPools(u.uid);
       } else {
         setProfile(null);
         setUserPools([]);
@@ -391,6 +453,17 @@ export default function App() {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setUserPools([]);
+      return;
+    }
+    const unsubPools = fetchUserPools(user.uid);
+    return () => {
+      unsubPools();
+    };
+  }, [user]);
 
   const fetchUserPools = (uid: string) => {
     const q = query(
@@ -512,8 +585,9 @@ export default function App() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed", error);
+      alert("Erro ao fazer login: " + (error.message || "Verifique o console para mais detalhes."));
     }
   };
 
@@ -712,20 +786,67 @@ export default function App() {
   const placeBet = async (matchId: string, predA: number, predB: number) => {
     if (!user || !selectedPool) return;
     const existingBet = bets.find(b => b.matchId === matchId);
-    if (existingBet) {
-      await updateDoc(doc(db, `pools/${selectedPool.id}/bets`, existingBet.id), {
-        predictionA: predA,
-        predictionB: predB
+    const toastId = toast.loading('Calculando e salvando palpite...');
+    try {
+      if (existingBet) {
+        await updateDoc(doc(db, `pools/${selectedPool.id}/bets`, existingBet.id), {
+          predictionA: predA,
+          predictionB: predB
+        });
+      } else {
+        await addDoc(collection(db, `pools/${selectedPool.id}/bets`), {
+          userId: user.uid,
+          poolId: selectedPool.id,
+          matchId,
+          predictionA: predA,
+          predictionB: predB,
+          pointsEarned: 0
+        });
+      }
+      toast.success('Palpite salvo no bolão com sucesso! ⚽🏆', { id: toastId });
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.7 }
       });
-    } else {
-      await addDoc(collection(db, `pools/${selectedPool.id}/bets`), {
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao salvar palpite antecipado.', { id: toastId });
+    }
+  };
+
+  const shareBetToChat = async (match: any, predA: number, predB: number) => {
+    if (!user || !selectedPool) return;
+    try {
+      const getCountryEmoji = (code?: string) => {
+        if (!code) return '⚽';
+        try {
+          const codeUpper = code.toUpperCase();
+          if (codeUpper === 'UN') return '⚽';
+          return codeUpper
+            .split('')
+            .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
+            .join('');
+        } catch (e) {
+          return '⚽';
+        }
+      };
+
+      const flagA = getCountryEmoji(match.teamACode);
+      const flagB = getCountryEmoji(match.teamBCode);
+      const text = `Polêmico! Meu palpite para ${match.teamA} x ${match.teamB} é: ${predA} x ${predB}! Quem concorda? ${flagA}⚔️${flagB}`;
+      
+      await addDoc(collection(db, `pools/${selectedPool.id}/messages`), {
+        text,
         userId: user.uid,
-        poolId: selectedPool.id,
-        matchId,
-        predictionA: predA,
-        predictionB: predB,
-        pointsEarned: 0
+        userName: profile?.displayName || 'Usuário',
+        userPhoto: profile?.photoURL || null,
+        createdAt: serverTimestamp(),
       });
+      toast.success('Palpite compartilhado no Chat da Resenha! 💬⚽');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao compartilhar palpite.');
     }
   };
 
@@ -748,7 +869,12 @@ export default function App() {
         updatedAt: serverTimestamp()
       });
       setUserEarlyPrediction({ champion, vice });
-      toast.success('Palpite antecipado salvo com sucesso!');
+      toast.success('Predição de Campeão & Vice salva com sucesso! 🎉🌟');
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
     } catch (error) {
       console.error(error);
       toast.error('Erro ao salvar palpite antecipado.');
@@ -757,7 +883,8 @@ export default function App() {
 
 
   const updateOfficialMatch = async (matchId: string, scoreA: number, scoreB: number, status: 'live' | 'finished') => {
-    if (user?.email !== 'deiorbo@gmail.com') return;
+    const isAdmin = user?.email === 'deiorbo@gmail.com' || profile?.role === 'admin' || profile?.isAdmin;
+    if (!isAdmin) return;
     
     try {
       await setDoc(doc(db, 'results', matchId), {
@@ -773,20 +900,31 @@ export default function App() {
     }
   };
 
+  const storedTheme = localStorage.getItem('theme');
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className={cn("min-h-screen flex items-center justify-center transition-colors", storedTheme === 'black' ? 'theme-black bg-black' : 'bg-slate-50')}>
         <Loader2 className="w-12 h-12 text-yellow-500 animate-spin" />
       </div>
     );
   }
 
+  const currentTheme = profile?.theme || localStorage.getItem('theme') || 'light';
+  
+  if (currentTheme === 'black') {
+    localStorage.setItem('theme', 'black');
+  } else if (currentTheme === 'light') {
+    localStorage.setItem('theme', 'light');
+  }
+
   return (
-    <div className={cn("min-h-screen bg-slate-50 text-slate-900 font-sans transition-colors", profile?.theme === 'black' ? 'theme-black' : '')}>
+    <div className={cn("min-h-screen font-sans transition-colors", currentTheme === 'black' ? 'theme-black bg-black text-slate-100' : 'bg-slate-50 text-slate-900')}>
       <Toaster position="top-center" richColors />
 
       <Navbar 
         user={user} 
+        profile={profile}
         onLogin={handleLogin} 
         onLogout={handleLogout} 
         onEditProfile={() => setShowEditProfile(true)}
@@ -798,7 +936,7 @@ export default function App() {
         isCheckingLeagues={isCheckingLeagues}
       />
 
-      {(coverageInfo || teamsInfo || roundsInfo) && (
+      {(user?.email === 'deiorbo@gmail.com' || profile?.role === 'admin' || profile?.isAdmin) && (coverageInfo || teamsInfo || roundsInfo) && (
         <div className="max-w-xl mx-auto px-4 mt-4 text-slate-800">
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 relative overflow-hidden">
             <div className="flex items-center justify-between mb-4">
@@ -1042,6 +1180,74 @@ export default function App() {
                     championPoints={selectedPool.scoringSystem.champion}
                     vicePoints={selectedPool.scoringSystem.vice}
                   />
+
+                  {/* Busca Inteligente & Filtro Pendentes */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-3 sm:p-4 shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                          <Search className="h-3.5 w-3.5 text-slate-400" />
+                        </span>
+                        <input
+                          type="text"
+                          value={matchSearchQuery}
+                          onChange={(e) => {
+                            setMatchSearchQuery(e.target.value);
+                            if (e.target.value.trim() !== '') setViewMode('date');
+                          }}
+                          placeholder="Buscar seleção... (Ex: Brasil, Argentina)"
+                          className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-705 placeholder-slate-400 focus:outline-none focus:border-brand/40 focus:ring-4 focus:ring-brand/5 transition-all uppercase tracking-wider"
+                        />
+                        {matchSearchQuery && (
+                          <button 
+                            onClick={() => setMatchSearchQuery('')} 
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-[9px] font-black text-slate-400 hover:text-slate-600"
+                          >
+                            LIMPAR
+                          </button>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={() => setShowPendingBetsOnly(!showPendingBetsOnly)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all",
+                          showPendingBetsOnly
+                            ? "bg-brand/10 border-brand/40 text-brand shadow-sm shadow-brand/10"
+                            : "bg-slate-50 border-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-105"
+                        )}
+                      >
+                        <Filter className="w-3 h-3" />
+                        O que falta palpitar?
+                        {showPendingBetsOnly && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand animate-ping shrink-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Quick stats summarizing predictions state */}
+                    <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50 p-2 rounded-xl">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-yellow-500 animate-pulse" />
+                        Total exibido: <strong className="text-slate-700">{filteredMergedMatches.length} partidas</strong>
+                      </span>
+                      <span>
+                        Seus palpites: <strong className="text-slate-700">{bets.filter(b => b.predictionA !== undefined && b.predictionB !== undefined).length} / {WORLD_CUP_2026_MATCHES.length}</strong>
+                      </span>
+                    </div>
+
+                    {leaderStats && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-brand/5 border border-brand/10 p-2.5 rounded-xl">
+                        <span className="flex items-center gap-1.5">
+                          <Trophy className="w-3 h-3 text-yellow-500 animate-bounce shrink-0" />
+                          <span>Índice de Acertos do Líder (<span className="text-slate-900">{leaderStats.leaderName}</span>):</span>
+                        </span>
+                        <span className="text-right text-[8.5px] font-black text-brand tracking-wider bg-brand/10 px-1.5 py-0.5 rounded leading-none">
+                          ⚡ {leaderStats.rate}% de acertos em cheio ({leaderStats.exactHits} placares exatos)
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Navigation Tabs */}
                   <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full mx-auto mb-6">
@@ -1218,7 +1424,7 @@ export default function App() {
                   
                   <div className="space-y-6">
                     {selectedGroupTab === 'Mata-Mata' && selectedGroup === 'Organograma' ? (
-                      <TournamentBracket matches={mergedMatches} userBets={bets} onPlaceBet={placeBet} />
+                      <TournamentBracket matches={mergedMatches} userBets={bets} onPlaceBet={placeBet} onShareBet={shareBetToChat} />
                     ) : (
                       Object.entries<Match[]>(
                         viewMode === 'group' ? matchesByGroup : 
@@ -1258,8 +1464,9 @@ export default function App() {
                                     setActiveMatchForBets(match);
                                     setShowViewBets(true);
                                   }}
+                                  onShareBet={shareBetToChat}
                                 />
-                                {user?.email === 'deiorbo@gmail.com' && (
+                                {(user?.email === 'deiorbo@gmail.com' || profile?.role === 'admin' || profile?.isAdmin) && (
                                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
                                     <button 
                                       onClick={() => {
@@ -1318,23 +1525,26 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden mb-8">
-                    <div className="bg-slate-900 px-5 py-5 text-white flex justify-between items-center relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-48 h-48 bg-brand/5 rounded-full -mr-24 -mt-24 blur-3xl" />
-                      <div className="relative">
-                        <h3 className="text-lg font-black uppercase tracking-tighter">Ranking</h3>
-                        <p className="text-slate-500 text-[8px] uppercase tracking-[0.2em] font-black">Classificação Real</p>
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-lg shadow-slate-100/50 overflow-hidden mb-8">
+                    <div className="bg-slate-950 px-4 py-3 text-white flex justify-between items-center relative overflow-hidden border-b border-slate-900">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-brand/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+                      <div className="relative flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-yellow-400 animate-pulse" />
+                        <div>
+                          <h3 className="text-xs font-black uppercase tracking-wider">Ranking</h3>
+                          <p className="text-slate-500 text-[7px] uppercase tracking-[0.1em] font-black">Classificação Real</p>
+                        </div>
                       </div>
                       <div className="flex flex-col items-end relative">
-                        <span className="text-[7px] font-bold text-brand uppercase tracking-widest leading-none mb-1">Inscritos</span>
-                        <span className="text-xl font-black leading-none">{ranking.length}</span>
+                        <span className="text-[6.5px] font-bold text-brand uppercase tracking-widest leading-none mb-0.5">Inscritos</span>
+                        <span className="text-sm font-black leading-none">{ranking.length}</span>
                       </div>
                     </div>
-                    <div className="px-5 py-2 bg-brand/5 border-b border-brand/10">
-                      <p className="text-[8px] text-brand/80 font-bold uppercase tracking-widest">💰 Pagamento confirmado = Ranking</p>
+                    <div className="px-4 py-1.5 bg-brand/5 border-b border-brand/10">
+                      <p className="text-[7.5px] text-brand/80 font-bold uppercase tracking-widest">💰 Pagamento confirmado = Ranking</p>
                     </div>
                     
-                    <div className="divide-y divide-slate-50">
+                    <div className="divide-y divide-slate-100">
                       {ranking.map((player, index) => {
                         const dist = (selectedPool.prizeDistribution || []).find(d => d.position === index + 1);
                         const potentialPrize = dist 
@@ -1343,32 +1553,52 @@ export default function App() {
                               : (dist.value / 100) * (prizeCalculations?.totalCollected || 0))
                           : 0;
 
+                        const isPodium = index < 3;
+                        const podiumColors = [
+                          'text-yellow-500 bg-yellow-50 border-yellow-200', // Gold
+                          'text-slate-500 bg-slate-50 border-slate-200',    // Silver
+                          'text-amber-700 bg-amber-50 border-amber-200'     // Bronze
+                        ];
+
                         return (
                           <div key={player.userId} className={cn(
-                            "flex items-center justify-between px-5 py-3 transition-colors",
-                            player.userId === user?.uid ? "bg-brand/5" : "hover:bg-slate-50"
+                            "flex items-center justify-between px-4 py-2 transition-colors",
+                            player.userId === user?.uid ? "bg-brand/5" : "hover:bg-slate-50/60"
                           )}>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <span className={cn(
-                                "w-5 text-xs font-black",
-                                index < 3 ? "text-brand" : "text-slate-200"
-                              )}>{index + 1}º</span>
-                              <img src={player.photoURL || `https://ui-avatars.com/api/?name=${player.name}&background=random`} className="w-9 h-9 rounded-full border-2 border-white shadow-sm" alt="" />
-                              <div>
-                                <p className="font-black text-xs text-slate-900 uppercase tracking-tighter truncate max-w-[120px]">{player.name}</p>
-                                {player.userId === user?.uid && <span className="text-[7px] font-black text-brand uppercase tracking-widest">Você</span>}
+                                "w-5 h-5 flex items-center justify-center text-[10px] font-black rounded-lg border leading-none shrink-0",
+                                isPodium 
+                                  ? podiumColors[index]
+                                  : "text-slate-400 bg-slate-50/50 border-slate-100"
+                              )}>
+                                {index + 1}
+                              </span>
+                              <img 
+                                src={player.photoURL || `https://ui-avatars.com/api/?name=${player.name}&background=random`} 
+                                className="w-7 h-7 rounded-full border border-slate-100 shadow-sm shrink-0 object-cover" 
+                                alt="" 
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="min-w-0">
+                                <p className="font-bold text-[11px] text-slate-900 uppercase tracking-tight truncate max-w-[130px] leading-tight font-sans">
+                                  {player.name}
+                                </p>
+                                {player.userId === user?.uid && (
+                                  <span className="inline-block text-[6.5px] font-black text-brand uppercase tracking-wider bg-brand/10 px-1 rounded">Você</span>
+                                )}
                               </div>
                             </div>
-                            <div className="text-right flex flex-col items-end">
-                              <div className="flex items-center gap-2">
-                                {potentialPrize > 0 && (
-                                  <span className="text-[8px] font-black text-brand bg-brand/10 px-1.5 py-0.5 rounded leading-none">
-                                    R$ {potentialPrize.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                  </span>
-                                )}
-                                <p className="text-lg font-black text-slate-900 tracking-tighter leading-none">{player.points}</p>
+                            <div className="text-right flex items-center gap-2.5 shrink-0">
+                              {potentialPrize > 0 && (
+                                <span className="text-[7.5px] font-black text-brand bg-brand/10 px-1.5 py-0.5 rounded leading-none shrink-0">
+                                  R$ {potentialPrize.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                              <div className="flex flex-col items-end min-w-[30px]">
+                                <span className="text-xs font-black text-slate-900 tracking-tight leading-none">{player.points}</span>
+                                <span className="text-[6px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 leading-none">Pts</span>
                               </div>
-                              <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest">Pts</p>
                             </div>
                           </div>
                         );
@@ -1454,7 +1684,7 @@ export default function App() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                 >
-                  <PoolChat pool={selectedPool} currentUser={profile!} />
+                  <PoolChat pool={selectedPool} currentUser={profile!} ranking={ranking} />
                 </motion.div>
               )}
             </AnimatePresence>

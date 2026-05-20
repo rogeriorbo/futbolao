@@ -32,10 +32,17 @@
   background-color: #f8fafc;
   color: #0f172a;
 }
-.theme-black .bg-slate-900.text-white {
+.theme-black .text-black {
+  color: #ffffff;
+}
+
+.theme-black .text-white {
   color: #0f172a;
 }
-.theme-black .bg-slate-800.text-white {
+
+.theme-black .bg-slate-900.text-white,
+.theme-black .bg-slate-800.text-white,
+.theme-black .bg-black.text-white {
   color: #0f172a;
 }
 

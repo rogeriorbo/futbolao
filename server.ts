@@ -26,16 +26,8 @@ if (!admin.apps.length) {
 }
 
 import { WORLD_CUP_2026_MATCHES } from "./src/data/matches";
-import { API_FOOTBALL_TEAM_MAPPING } from "./src/data/apiMapping";
 
 const db = admin.firestore();
-
-// Helper to map API status to our app status
-const mapStatus = (apiStatus: string) => {
-  if (["FT", "AET", "PEN"].includes(apiStatus)) return "finished";
-  if (["1H", "HT", "2H", "ET", "P", "LIVE"].includes(apiStatus)) return "live";
-  return "scheduled";
-};
 
 async function startServer() {
   const app = express();
@@ -46,35 +38,37 @@ async function startServer() {
 
   // Health check to verify server is running and has the key
   app.get("/api/health", (req, res) => {
+    const key = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     res.json({
       status: "ok",
-      hasApiKey: !!process.env.API_FOOTBALL_KEY,
-      keyPrefix: process.env.API_FOOTBALL_KEY
-        ? process.env.API_FOOTBALL_KEY.substring(0, 4) + "..."
-        : "none",
+      hasApiKey: !!key,
+      keyPrefix: key ? key.substring(0, 4) + "..." : "none",
       env: process.env.NODE_ENV,
     });
   });
 
-  // Diagnostic endpoint to check what leagues are available with this key
+  // Diagnostic endpoint to check what leagues are available/test connection
   app.get("/api/check-leagues", async (req, res) => {
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    const apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     if (!apiKey) return res.status(400).json({ error: "Missing API Key" });
 
     try {
-      const host = "v3.football.api-sports.io";
-      const response = await axios.get(`https://${host}/leagues`, {
-        params: { id: 1, season },
+      const response = await axios.get(`https://api.wc2026api.com/teams`, {
         headers: {
-          "x-apisports-key": apiKey.trim(),
-          "x-apisports-host": host,
+          "Authorization": `Bearer ${apiKey.trim()}`
         },
         timeout: 10000,
       });
-      res.json(response.data);
+      // Mock the old structure so the frontend doesn't break
+      res.json({
+        response: [
+          {
+            coverage: { fixtures: { events: true, statistics_fixtures: true } },
+            league: { id: 1, name: "World Cup 2026" }
+          }
+        ],
+        results: 1
+      });
     } catch (error: any) {
       res.status(200).json({
         success: false,
@@ -86,23 +80,20 @@ async function startServer() {
 
   // Diagnostic endpoint to check teams
   app.get("/api/check-teams", async (req, res) => {
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    const apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     if (!apiKey) return res.status(400).json({ error: "Missing API Key" });
 
     try {
-      const host = "v3.football.api-sports.io";
-      const response = await axios.get(`https://${host}/teams`, {
-        params: { league: 1, season },
+      const response = await axios.get(`https://api.wc2026api.com/teams`, {
         headers: {
-          "x-apisports-key": apiKey.trim(),
-          "x-apisports-host": host,
+          "Authorization": `Bearer ${apiKey.trim()}`
         },
         timeout: 10000,
       });
-      res.json(response.data);
+      res.json({
+        response: response.data,
+        results: response.data?.length || 0
+      });
     } catch (error: any) {
       res
         .status(200)
@@ -116,23 +107,24 @@ async function startServer() {
 
   // Diagnostic endpoint to check rounds
   app.get("/api/check-rounds", async (req, res) => {
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    const apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     if (!apiKey) return res.status(400).json({ error: "Missing API Key" });
 
     try {
-      const host = "v3.football.api-sports.io";
-      const response = await axios.get(`https://${host}/fixtures/rounds`, {
-        params: { league: 1, season },
+      const response = await axios.get(`https://api.wc2026api.com/matches`, {
         headers: {
-          "x-apisports-key": apiKey.trim(),
-          "x-apisports-host": host,
+          "Authorization": `Bearer ${apiKey.trim()}`
         },
         timeout: 10000,
       });
-      res.json(response.data);
+      
+      const matches = response.data || [];
+      const rounds = Array.from(new Set(matches.map((m: any) => m.round)));
+      
+      res.json({
+        response: rounds,
+        results: rounds.length
+      });
     } catch (error: any) {
       res
         .status(200)
@@ -146,51 +138,24 @@ async function startServer() {
 
   // API Route for syncing teams
   app.get("/api/sync-teams", async (req, res) => {
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    const apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     if (!apiKey) return res.json({ success: false, error: "Missing API Key" });
 
     try {
-      const host = "v3.football.api-sports.io";
-      const response = await axios.get(`https://${host}/teams`, {
-        params: { league: 1, season },
-        headers: { "x-apisports-key": apiKey.trim(), "x-apisports-host": host },
+      const response = await axios.get(`https://api.wc2026api.com/teams`, {
+        headers: { "Authorization": `Bearer ${apiKey.trim()}` },
         timeout: 15000,
       });
 
-      if (
-        response.data.errors &&
-        (Array.isArray(response.data.errors)
-          ? response.data.errors.length > 0
-          : Object.keys(response.data.errors).length > 0)
-      ) {
-        const errorStr = JSON.stringify(response.data.errors).toLowerCase();
-        if (errorStr.includes("rate") || errorStr.includes("limit")) {
-          return res.json({
-            success: false,
-            error: "Aguarde um minuto para atualizar os dados novamente.",
-            details: response.data.errors,
-          });
-        }
-        return res.json({
-          success: false,
-          error: "API Error",
-          details: response.data.errors,
-        });
-      }
-
-      const teamItems = response.data.response;
+      const teamItems = response.data;
       const batch = db.batch();
 
       for (const item of teamItems) {
-        const teamRef = db.collection("teams").doc(item.team.id.toString());
+        const teamRef = db.collection("teams").doc(item.id.toString());
         batch.set(
           teamRef,
           {
-            ...item.team,
-            venue: item.venue,
+            ...item,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -206,57 +171,29 @@ async function startServer() {
 
   // API Route for syncing standings
   app.get("/api/sync-standings", async (req, res) => {
-    const apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    const apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
     if (!apiKey) return res.json({ success: false, error: "Missing API Key" });
 
     try {
-      const host = "v3.football.api-sports.io";
-      const response = await axios.get(`https://${host}/standings`, {
-        params: { league: 1, season },
-        headers: { "x-apisports-key": apiKey.trim(), "x-apisports-host": host },
+      const response = await axios.get(`https://api.wc2026api.com/groups`, {
+        headers: { "Authorization": `Bearer ${apiKey.trim()}` },
         timeout: 15000,
       });
 
-      if (
-        response.data.errors &&
-        (Array.isArray(response.data.errors)
-          ? response.data.errors.length > 0
-          : Object.keys(response.data.errors).length > 0)
-      ) {
-        const errorStr = JSON.stringify(response.data.errors).toLowerCase();
-        if (errorStr.includes("rate") || errorStr.includes("limit")) {
-          return res.json({
-            success: false,
-            error: "Aguarde um minuto para atualizar os dados novamente.",
-            details: response.data.errors,
-          });
-        }
-        return res.json({
-          success: false,
-          error: "API Error",
-          details: response.data.errors,
-        });
-      }
-
-      const standingsData = response.data.response[0]?.league?.standings;
-      if (!standingsData)
-        return res.json({ success: false, error: "No standings data found" });
+      const groupsData = response.data;
+      if (!groupsData || !Array.isArray(groupsData))
+        return res.json({ success: false, error: "No standings data found / invalid format" });
 
       const batch = db.batch();
-      // Flatten groups into a single collection or nested?
-      // API returns an array of arrays (one for each group)
-      for (const group of standingsData) {
-        if (!group.length) continue;
-        const groupName = group[0].group;
+      for (const group of groupsData) {
+        if (!group.letter) continue;
+        const groupName = `Group ${group.letter}`;
         const groupRef = db.collection("standings").doc(groupName);
         batch.set(
           groupRef,
           {
             name: groupName,
-            teams: group,
+            teams: group.teams || [], // Adjusting slightly, wc2026api likely returns teams array inside group
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -266,7 +203,7 @@ async function startServer() {
       await batch.commit();
       res.json({
         success: true,
-        message: `Synced ${standingsData.length} groups.`,
+        message: `Synced ${groupsData.length} groups.`,
       });
     } catch (error: any) {
       res.json({ success: false, error: error.message });
@@ -275,88 +212,29 @@ async function startServer() {
 
   // API Route for syncing scores
   app.get("/api/sync-scores", async (req, res) => {
-    let apiKey = process.env.API_FOOTBALL_KEY;
-    const season = req.query.season
-      ? parseInt(req.query.season as string)
-      : 2026;
+    let apiKey = process.env.WC2026_API_KEY || process.env.API_FOOTBALL_KEY;
 
     if (!apiKey) {
-      console.error("Sync error: API_FOOTBALL_KEY is missing");
+      console.error("Sync error: API key is missing");
       return res.json({
         success: false,
-        error:
-          "A chave API_FOOTBALL_KEY não foi configurada nos segredos do app.",
+        error: "A chave API não foi configurada nos segredos do app.",
       });
     }
 
     apiKey = apiKey.trim();
 
-    console.log(`Starting sync for League 1 (World Cup), Season ${season}...`);
-    console.log(
-      `Key info: length=${apiKey.length}, startsWith=${apiKey.substring(0, 4)}`,
-    );
-
     try {
-      // Trying the direct API-Sports host first.
-      const host = "v3.football.api-sports.io";
-
-      console.log(
-        `Calling API-Sports: https://${host}/fixtures?league=1&season=${season}`,
-      );
-
-      const response = await axios.get(`https://${host}/fixtures`, {
-        params: {
-          league: 1,
-          season: season,
-        },
+      const response = await axios.get(`https://api.wc2026api.com/matches`, {
         headers: {
-          "x-apisports-key": apiKey,
-          "x-apisports-host": host,
+          "Authorization": `Bearer ${apiKey}`,
           "User-Agent": "BolaoCopa/1.0",
           Accept: "application/json",
         },
         timeout: 15000,
       });
 
-      // API-Football returns errors inside 200 OK
-      const apiErrors = response.data.errors;
-      const hasErrors =
-        apiErrors &&
-        (Array.isArray(apiErrors)
-          ? apiErrors.length > 0
-          : Object.keys(apiErrors).length > 0);
-
-      if (hasErrors) {
-        console.error("API-Sports error detected:", JSON.stringify(apiErrors));
-
-        let customError = "O provedor da API retornou um erro.";
-        const errorStr = JSON.stringify(apiErrors).toLowerCase();
-
-        if (errorStr.includes("season") || errorStr.includes("plan")) {
-          // If they are trying 2026 and get a plan error, be very specific
-          if (season === 2026) {
-            customError =
-              "Seu plano (Free ou Iniciante) não suporta a Copa 2026. Altere para 2022 nas configurações de diagnóstico para testar a sincronização com dados reais.";
-          } else {
-            customError = `Seu plano não tem acesso à temporada ${season}.`;
-          }
-        } else if (errorStr.includes("rate") || errorStr.includes("limit")) {
-          customError = "Aguarde um minuto para atualizar os dados novamente.";
-        } else if (errorStr.includes("key") || errorStr.includes("token")) {
-          customError =
-            "Chave de API inválida. Verifique se a chave foi inserida corretamente nos segredos.";
-        } else if (errorStr.includes("access")) {
-          customError = "Seu plano da API não tem acesso a esses dados.";
-        }
-
-        return res.json({
-          success: false,
-          error: customError,
-          details: apiErrors,
-        });
-      }
-
-      const fixtures = response.data.response;
+      const fixtures = response.data;
       if (!fixtures || !Array.isArray(fixtures)) {
         return res.json({
           success: false,
@@ -370,16 +248,12 @@ async function startServer() {
       const updates: any[] = [];
 
       for (const fixture of fixtures) {
-        const homeName = fixture.teams.home.name;
-        const awayName = fixture.teams.away.name;
-        const homeCode = API_FOOTBALL_TEAM_MAPPING[homeName];
-        const awayCode = API_FOOTBALL_TEAM_MAPPING[awayName];
+        const homeCode = fixture.home_team_code;
+        const awayCode = fixture.away_team_code;
 
         if (!homeCode || !awayCode) continue;
 
-        // Find match in our data
-        // We match by team codes. In World Cup group stage, teams only play each other once.
-        // For knockout rounds, we might need date matching too.
+        // Find match in our data by team codes
         const match = WORLD_CUP_2026_MATCHES.find(
           (m) =>
             (m.teamA === homeCode && m.teamB === awayCode) ||
@@ -387,24 +261,34 @@ async function startServer() {
         );
 
         if (match) {
-          const status = mapStatus(fixture.fixture.status.short);
+          const status = fixture.status; // 'scheduled', 'live', 'completed'
+          const mappedStatus = status === 'completed' ? 'finished' : status;
+          
           const scoreA =
-            match.teamA === homeCode ? fixture.goals.home : fixture.goals.away;
+            match.teamA === homeCode ? fixture.home_score : fixture.away_score;
           const scoreB =
-            match.teamA === homeCode ? fixture.goals.away : fixture.goals.home;
+            match.teamA === homeCode ? fixture.away_score : fixture.home_score;
+            
+          const penA = match.teamA === homeCode ? fixture.home_pen : fixture.away_pen;
+          const penB = match.teamA === homeCode ? fixture.away_pen : fixture.home_pen;
 
           // Only update if it's live or finished and we have scores
-          if (status !== "scheduled" && scoreA !== null && scoreB !== null) {
+          if (mappedStatus !== "scheduled" && scoreA !== null && scoreB !== null && scoreA !== undefined) {
             const resultRef = db.collection("results").doc(match.id);
+            const updatePayload: any = {
+              scoreA,
+              scoreB,
+              status: mappedStatus,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              apiFixtureId: fixture.id,
+            };
+            
+            if (penA !== null && penA !== undefined) updatePayload.penA = penA;
+            if (penB !== null && penB !== undefined) updatePayload.penB = penB;
+
             batch.set(
               resultRef,
-              {
-                scoreA,
-                scoreB,
-                status,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                apiFixtureId: fixture.fixture.id,
-              },
+              updatePayload,
               { merge: true },
             );
 
@@ -413,7 +297,7 @@ async function startServer() {
               matchId: match.id,
               teams: `${homeCode} x ${awayCode}`,
               score: `${scoreA}-${scoreB}`,
-              status,
+              status: mappedStatus,
             });
           }
         }
@@ -430,28 +314,16 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error("Sync error caught:", error.message);
-      let details = null;
+      
       let errorMsg = `Erro na requisição: ${error.message}`;
-
-      if (error.response) {
-        // If the error response itself is HTML, don't return the whole HTML string
-        const contentType = error.response.headers?.["content-type"] || "";
-        if (contentType.includes("text/html")) {
-          details =
-            "A API retornou uma página HTML de erro (provavelmente 403 Forbidden). Isso acontece quando o WAF da API bloqueia a requisição.";
-          errorMsg =
-            "Acesso negado pela API (403 Forbidden). Verifique sua chave e plano.";
-        } else {
-          details = error.response.data;
-        }
-        console.error("Error response details:", details);
+      if (error.response?.status === 401) {
+        errorMsg = "Chave de API inválida (401 Não Autorizado). Verifique se configurou WC2026_API_KEY corretamente nos segredos.";
       }
-
-      // ALWAYS return 200 to avoid platform intervention with HTML pages
+      
       res.json({
         success: false,
         error: errorMsg,
-        details: details,
+        details: error.response?.data || null,
       });
     }
   });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { Send, User as UserIcon, MessageCircle, Pencil, Trash2, X, Check, Smile, Mic } from 'lucide-react';
+import { Send, User as UserIcon, MessageCircle, Pencil, Trash2, X, Check, Smile, Mic, CornerUpLeft } from 'lucide-react';
 import Picker from 'emoji-picker-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
@@ -11,6 +11,7 @@ import { UserProfile, Pool } from '../types';
 interface PoolChatProps {
   pool: Pool;
   currentUser: UserProfile;
+  ranking?: { userId: string, name: string, photoURL?: string, points: number }[];
 }
 
 interface Message {
@@ -21,14 +22,21 @@ interface Message {
   userPhoto?: string;
   createdAt: any;
   imageUrl?: string;
+  replyTo?: {
+    id: string;
+    text: string;
+    userName: string;
+  };
 }
 
 interface PresenceData {
   online: boolean;
   lastSeen?: any;
+  typing?: boolean;
+  displayName?: string;
 }
 
-export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
+export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser, ranking = [] }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [participants, setParticipants] = useState<UserProfile[]>([]);
@@ -36,6 +44,19 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+
+  const QUICK_TAUNTS = [
+    "Secador ligado! 💨",
+    "Falei que ia dar zebra! 🦓",
+    "Meu palpite foi cirúrgico! 🎯",
+    "E o líder caiu... 📉",
+    "Faz o PIX! 💸",
+    "Que golaço! ⚽🔥",
+    "Chora mais! 😭⚽",
+    "Estou de olho! 👁️"
+  ];
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -126,7 +147,26 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
     };
   }, [poolId, currentUser]);
 
+  useEffect(() => {
+    if (!currentUser || !poolId) return;
+    const pRef = doc(db, `pools/${poolId}/presence`, currentUser.uid);
 
+    if (newMessage.trim().length > 0) {
+      setDoc(pRef, { typing: true, displayName: currentUser.displayName || 'Alguém' }, { merge: true });
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        setDoc(pRef, { typing: false }, { merge: true });
+      }, 2500);
+    } else {
+      setDoc(pRef, { typing: false }, { merge: true });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [newMessage, currentUser, poolId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -162,7 +202,15 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
         userPhoto: currentUser.photoURL || null,
         createdAt: serverTimestamp(),
         ...(imageUrl && { imageUrl }),
+        ...(replyToMessage && {
+          replyTo: {
+            id: replyToMessage.id,
+            text: replyToMessage.text,
+            userName: replyToMessage.userName,
+          }
+        })
       });
+      setReplyToMessage(null);
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
     }
@@ -176,6 +224,54 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
       console.error('Erro ao excluir:', error);
     }
   };
+
+  const renderUserBadges = (msgUserId: string) => {
+    const badges: React.ReactNode[] = [];
+
+    // Dono do bolão
+    if (msgUserId === pool.ownerId) {
+      badges.push(
+        <span key="owner" className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-rose-50 border border-rose-100 rounded text-[6.5px] font-black text-rose-600 uppercase tracking-wider shrink-0" title="Organizador do Bolão">
+          🛡️ Admin
+        </span>
+      );
+    }
+
+    // Ranking badge
+    const rankIndex = ranking.findIndex(r => r.userId === msgUserId);
+    if (rankIndex === 0) {
+      badges.push(
+        <span key="rank-1" className="text-[10px] shrink-0" title="1º Colocado — Líder do Bolão">
+          👑
+        </span>
+      );
+    } else if (rankIndex === 1) {
+      badges.push(
+        <span key="rank-2" className="text-[10px] shrink-0" title="2º Colocado">
+          🥈
+        </span>
+      );
+    } else if (rankIndex === 2) {
+      badges.push(
+        <span key="rank-3" className="text-[10px] shrink-0" title="3º Colocado">
+          🥉
+        </span>
+      );
+    } else if (ranking.length > 3 && rankIndex === ranking.length - 1) {
+      badges.push(
+        <span key="rank-last" className="text-[10px] shrink-0 select-none animate-pulse" title="Último Colocado — Lanterna">
+          🚨
+        </span>
+      );
+    }
+
+    if (badges.length === 0) return null;
+    return <div className="flex items-center gap-1 shrink-0">{badges}</div>;
+  };
+
+  const typers = Object.entries(presence)
+    .filter(([uid, data]) => uid !== currentUser.uid && (data as any).online && (data as any).typing)
+    .map(([_, data]) => (data as any).displayName || 'Alguém');
 
   const onEmojiClick = (emojiObject: any) => {
     setNewMessage((prev) => prev + emojiObject.emoji);
@@ -234,7 +330,7 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
           messages.map((msg) => {
             const isMe = msg.userId === currentUser.uid;
             return (
-              <div key={msg.id} className={cn("flex gap-2 max-w-[85%] group", isMe ? "ml-auto flex-row-reverse" : "")}>
+              <div id={`msg-${msg.id}`} key={msg.id} className={cn("flex gap-2 max-w-[85%] group transition-all duration-300 rounded-2xl p-1", isMe ? "ml-auto flex-row-reverse" : "")}>
                 {!isMe && (
                   <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden mt-1">
                     {msg.userPhoto ? (
@@ -245,40 +341,86 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
                   </div>
                 )}
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {!isMe && <span className="text-[9px] font-bold text-slate-400">{msg.userName}</span>}
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    {!isMe ? (
+                      <span className="text-[9px] font-black text-slate-700">{msg.userName}</span>
+                    ) : (
+                      <span className="text-[9px] font-black text-slate-500">Você</span>
+                    )}
+                    {renderUserBadges(msg.userId)}
                     {msg.createdAt && (
-                      <span className="text-[8px] font-bold text-slate-400">
+                      <span className="text-[7.5px] font-bold text-slate-400">
                         {format(msg.createdAt.toDate(), "dd/MM HH:mm", { locale: ptBR })}
                       </span>
                     )}
                   </div>
                   
-                  <div className="relative group/bubble flex items-center gap-2">
-                    {isMe && (
-                      <div className="opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1">
-                        <button 
-                          onClick={() => {
-                            setEditingMessageId(msg.id);
-                            setNewMessage(msg.text);
-                          }}
-                          className="p-1.5 rounded-full text-slate-400 hover:text-brand hover:bg-slate-100 transition-colors"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        <button 
-                          onClick={() => setMessageToDelete(msg.id)}
-                          className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
+                  <div className={cn("relative group/bubble flex items-center gap-2", isMe ? "flex-row-reverse" : "")}>
+                    <div className={cn(
+                      "opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1",
+                      isMe ? "flex-row-reverse" : ""
+                    )}>
+                      <button 
+                        onClick={() => {
+                          setReplyToMessage(msg);
+                          const input = document.querySelector('input[placeholder="Digite sua resenha..."]') as HTMLInputElement;
+                          if (input) input.focus();
+                        }}
+                        className="p-1.5 rounded-full text-slate-400 hover:text-brand hover:bg-slate-100 transition-colors"
+                        title="Responder"
+                      >
+                        <CornerUpLeft className="w-3 h-3" />
+                      </button>
+                      {isMe && (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setEditingMessageId(msg.id);
+                              setNewMessage(msg.text);
+                            }}
+                            className="p-1.5 rounded-full text-slate-400 hover:text-brand hover:bg-slate-100 transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button 
+                            onClick={() => setMessageToDelete(msg.id)}
+                            className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
                     <div className={cn(
                       "px-3 py-2 rounded-2xl text-[12px] font-normal leading-relaxed max-w-full overflow-hidden shadow-sm",
                       isMe ? "bg-brand text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none",
                       msg.imageUrl ? "p-1" : ""
                     )}>
+                      {msg.replyTo && (
+                        <div 
+                          className={cn(
+                            "mb-1.5 text-[9px] rounded-lg p-1.5 border-l-2 text-left cursor-pointer transition-all hover:brightness-95 max-w-[220px]",
+                            isMe ? "bg-slate-900/10 border-slate-900/40 text-slate-800" : "bg-slate-100 border-brand text-slate-600"
+                          )}
+                          onClick={() => {
+                            const element = document.getElementById(`msg-${msg.replyTo?.id}`);
+                            if (element) {
+                              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              element.classList.add('bg-brand/20', 'ring-2', 'ring-brand', 'ring-offset-1');
+                              setTimeout(() => element.classList.remove('bg-brand/20', 'ring-2', 'ring-brand', 'ring-offset-1'), 2000);
+                            }
+                          }}
+                        >
+                          <div className="font-extrabold text-[8px] mb-0.5 uppercase tracking-wider truncate">
+                            {msg.replyTo.userName}
+                          </div>
+                          <div className="truncate text-[8.5px] line-clamp-1 italic">
+                            "{msg.replyTo.text}"
+                          </div>
+                        </div>
+                      )}
+
                       {msg.imageUrl && (
                         <div 
                           className="rounded-xl overflow-hidden mb-1 mx-auto max-w-[200px] cursor-pointer hover:opacity-90 transition-opacity"
@@ -303,40 +445,94 @@ export const PoolChat: React.FC<PoolChatProps> = ({ pool, currentUser }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 bg-white border-t border-slate-100 fixed bottom-[72px] left-0 right-0 w-full max-w-lg mx-auto">
+      <div className="p-2 bg-white border-t border-slate-100 fixed bottom-[72px] left-0 right-0 w-full max-w-lg mx-auto z-20 space-y-1">
+        {/* Reply Indicator Preview */}
+        {replyToMessage && (
+          <div className="mx-1 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-2 text-[9px] font-bold text-slate-600 transition-all select-none animate-slide-up">
+            <div className="flex items-center gap-1.5 truncate">
+              <CornerUpLeft className="w-3 h-3 text-brand shrink-0" />
+              <span className="truncate">
+                Respondendo a <strong className="text-slate-950">{replyToMessage.userName}</strong>: <span className="font-medium text-slate-400 italic">"{replyToMessage.text || 'Mídia'}"</span>
+              </span>
+            </div>
+            <button 
+              type="button"
+              onClick={() => setReplyToMessage(null)}
+              className="p-1 hover:bg-slate-200/50 rounded-full text-slate-400 hover:text-slate-600 shrink-0"
+              title="Cancelar resposta"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Typers indicator */}
+        {typers.length > 0 && (
+          <div className="text-[8px] text-slate-400 font-extrabold uppercase tracking-widest animate-pulse ml-3 px-1 flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce" />
+            <span>{typers.join(', ')} {typers.length === 1 ? 'está' : 'estão'} digitando...</span>
+          </div>
+        )}
+
+        {/* Quick Taunts bar */}
+        <div className="flex gap-1 overflow-x-auto no-scrollbar py-1 px-2 border-b border-slate-100">
+          {QUICK_TAUNTS.map((taunt) => (
+            <button
+              key={taunt}
+              type="button"
+              onClick={async () => {
+                try {
+                  await addDoc(collection(db, `pools/${poolId}/messages`), {
+                    text: taunt,
+                    userId: currentUser.uid,
+                    userName: currentUser.displayName || 'Usuário',
+                    userPhoto: currentUser.photoURL || null,
+                    createdAt: serverTimestamp(),
+                  });
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              className="shrink-0 px-2.5 py-1 bg-slate-50 hover:bg-brand/10 hover:border-brand/30 border border-slate-200/60 rounded-full text-[9px] font-black text-slate-500 hover:text-brand transition-all select-none shadow-sm uppercase tracking-wider"
+            >
+              {taunt}
+            </button>
+          ))}
+        </div>
+
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-full right-2 z-50 mb-3 shadow-2xl rounded-2xl overflow-hidden border border-slate-100">
              <div className="flex bg-white justify-between items-center px-3 py-2 border-b border-slate-100">
-               <span className="text-[10px] font-bold text-slate-400 uppercase">Emojis</span>
-               <button onClick={() => setShowEmojiPicker(false)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400"><X className="w-4 h-4"/></button>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Emojis</span>
+                <button onClick={() => setShowEmojiPicker(false)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400"><X className="w-4 h-4"/></button>
              </div>
              <Picker onEmojiClick={onEmojiClick} autoFocusSearch={false} theme={"light" as any} height={350} width={300} />
           </div>
         )}
-        <form onSubmit={handleSendMessage} className="flex items-center gap-1 p-2 bg-white rounded-full mx-2 mb-2 border border-slate-200">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-1 p-1 bg-slate-50 border border-slate-100 rounded-full mx-1">
           <div className="relative flex-1">
             <input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Mensagem..."
-              className="w-full bg-transparent px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              placeholder="Digite sua resenha..."
+              className="w-full bg-transparent px-4 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none font-medium"
             />
           </div>
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 text-slate-400 hover:text-brand"
+            className="p-1.5 text-slate-400 hover:text-brand"
             title="Emojis"
           >
-            <Smile className="w-5 h-5" />
+            <Smile className="w-4 h-4" />
           </button>
           <button
             type="submit"
             disabled={!newMessage.trim()}
-            className="p-2 bg-brand text-slate-900 rounded-full shrink-0 disabled:opacity-50 hover:bg-brand-hover transition-colors"
+            className="p-1.5 bg-brand text-slate-900 rounded-full shrink-0 disabled:opacity-40 hover:bg-brand-hover transition-colors"
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-4 h-4" />
           </button>
         </form>
       </div>

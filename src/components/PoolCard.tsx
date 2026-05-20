@@ -1,8 +1,10 @@
 import React from 'react';
 import { Users, Copy, Check, Settings, Trophy, Share2 } from 'lucide-react';
-import { Pool } from '../types';
+import { Pool, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface PoolCardProps {
   pool: Pool;
@@ -16,8 +18,38 @@ interface PoolCardProps {
 
 export const PoolCard: React.FC<PoolCardProps> = ({ pool, isSelected, onClick, isOwner, onEdit, onDelete, onManage }) => {
   const [copied, setCopied] = React.useState(false);
+  const [participantProfiles, setParticipantProfiles] = React.useState<UserProfile[]>([]);
 
   const pendingCount = pool.pendingParticipants?.length || 0;
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchParticipants = async () => {
+      try {
+        const profiles = await Promise.all(
+          pool.participants.map(async (uid) => {
+            const uDoc = await getDoc(doc(db, 'users', uid));
+            if (uDoc.exists()) {
+              return { uid, ...uDoc.data() } as UserProfile;
+            }
+            return null;
+          })
+        );
+        if (active) {
+          setParticipantProfiles(profiles.filter((p): p is UserProfile => p !== null));
+        }
+      } catch (error) {
+        console.error("Error fetching participants for card:", error);
+      }
+    };
+
+    if (pool.participants && pool.participants.length > 0) {
+      fetchParticipants();
+    }
+    return () => {
+      active = false;
+    };
+  }, [pool.participants]);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -38,15 +70,34 @@ export const PoolCard: React.FC<PoolCardProps> = ({ pool, isSelected, onClick, i
       )}
     >
       <div className="flex justify-between items-center relative z-10">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-9 h-9 bg-slate-900 rounded-[1rem] flex items-center justify-center shrink-0 shadow-sm border border-slate-800">
+        <div className="flex items-start gap-2.5 overflow-hidden min-w-0 flex-1">
+          <div className="w-9 h-9 bg-slate-900 rounded-[1rem] flex items-center justify-center shrink-0 shadow-sm border border-slate-800 mt-0.5">
              <Trophy className="w-4.5 h-4.5 text-yellow-400" />
           </div>
-          <div className="overflow-hidden">
+          <div className="overflow-hidden flex-1 min-w-0">
             <h4 className="text-xs font-black text-slate-900 leading-tight truncate uppercase tracking-tight">{pool.name}</h4>
-            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5 flex items-center gap-1">
-              <Users className="w-2 h-2" /> {pool.participants.length} JOGADORES
-            </p>
+            <div className="mt-1 flex flex-col gap-1">
+              <div className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.1em] flex items-center gap-1">
+                <Users className="w-2 h-2 text-slate-400" /> {pool.participants.length}{pool.limit ? ` / ${pool.limit}` : ''} JOGADORES
+              </div>
+              {participantProfiles.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap mt-0.5 max-h-[40px] overflow-y-auto no-scrollbar">
+                  {participantProfiles.map((p) => (
+                    <div key={p.uid} className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-1 py-0.5 rounded-full shrink-0 shadow-sm">
+                      <img 
+                        src={p.photoURL || `https://ui-avatars.com/api/?name=${p.displayName || '?'}`} 
+                        alt={p.displayName} 
+                        className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                      <span className="text-[7.5px] font-bold text-slate-600 truncate max-w-[50px] leading-none">
+                        {p.displayName ? p.displayName.split(' ')[0] : 'Usuário'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         

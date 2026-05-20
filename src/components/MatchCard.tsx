@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Trophy, CheckCircle2, Users, ChevronDown, MapPin } from 'lucide-react';
+import { Calendar, Trophy, CheckCircle2, Users, ChevronDown, MapPin, Share2 } from 'lucide-react';
 import { Match, Bet } from '../types';
 import { cn } from '../lib/utils';
 
@@ -13,9 +13,10 @@ interface MatchCardProps {
   poolBets?: Bet[];
   onPlaceBet: (matchId: string, predA: number, predB: number) => void;
   onViewAllBets?: () => void;
+  onShareBet?: (match: Match, predA: number, predB: number) => void;
 }
 
-export const MatchCard: React.FC<MatchCardProps> = ({ match, bet, poolBets = [], onPlaceBet, onViewAllBets }) => {
+export const MatchCard: React.FC<MatchCardProps> = ({ match, bet, poolBets = [], onPlaceBet, onViewAllBets, onShareBet }) => {
   const [predA, setPredA] = useState<string>(bet ? (bet.predictionA !== undefined ? bet.predictionA.toString() : '') : '');
   const [predB, setPredB] = useState<string>(bet ? (bet.predictionB !== undefined ? bet.predictionB.toString() : '') : '');
   const isFinished = match.status === 'finished';
@@ -41,6 +42,34 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, bet, poolBets = [],
       pB: Math.round((counts.b / totalBets) * 100)
     };
   }, [poolBets, totalBets]);
+
+  const mostPredictedScore = useMemo(() => {
+    if (poolBets.length === 0) return null;
+    const scores: Record<string, number> = {};
+    poolBets.forEach(b => {
+      if (b.predictionA !== undefined && b.predictionB !== undefined) {
+        const key = `${b.predictionA} x ${b.predictionB}`;
+        scores[key] = (scores[key] || 0) + 1;
+      }
+    });
+    
+    let bestKey = '';
+    let maxCount = 0;
+    Object.entries(scores).forEach(([key, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        bestKey = key;
+      }
+    });
+
+    if (!bestKey) return null;
+
+    return {
+      score: bestKey,
+      percentage: Math.round((maxCount / poolBets.length) * 100),
+      count: maxCount
+    };
+  }, [poolBets]);
 
   useEffect(() => {
     if (bet) {
@@ -75,11 +104,23 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, bet, poolBets = [],
           <span className="text-[8px] font-black text-black uppercase tracking-widest leading-none">
             {format(new Date(match.date), "dd/MM • HH:mm", { locale: ptBR })}
           </span>
-          {isLive && (
-            <span className="flex items-center gap-1 px-1 py-0 bg-red-50 text-red-600 rounded text-[7px] font-black uppercase tracking-widest animate-pulse">
-              AO VIVO
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {isLive && (
+              <span className="flex items-center gap-1 px-1 py-0 bg-red-50 text-red-600 rounded text-[7px] font-black uppercase tracking-widest animate-pulse leading-none">
+                AO VIVO
+              </span>
+            )}
+            {onShareBet && bet && bet.predictionA !== undefined && bet.predictionB !== undefined && (
+              <button
+                onClick={() => onShareBet(match, bet.predictionA, bet.predictionB)}
+                title="Compartilhar Palpite no Chat"
+                className="flex items-center gap-1 px-1 py-0.5 bg-brand/10 hover:bg-brand text-brand hover:text-slate-900 border border-brand/20 rounded text-[6.5px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm select-none"
+              >
+                <Share2 className="w-2 h-2 shrink-0" />
+                <span>Compartilhar</span>
+              </button>
+            )}
+          </div>
         </div>
         {(match.stadium || match.location) && (
           <div className="flex items-center gap-1">
@@ -219,6 +260,14 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, bet, poolBets = [],
               <span className="text-[6px] font-black text-slate-500 uppercase tracking-tighter truncate max-w-[30px] text-right leading-tight">{match.teamBShort || match.teamB}</span>
             </div>
           </div>
+          {mostPredictedScore && (
+            <div className="mt-1.5 px-1 py-0.5 bg-slate-50/70 border border-slate-100/60 rounded flex items-center justify-between text-[6.5px] font-bold text-slate-500 uppercase tracking-wider">
+              <span>🎯 Placar Favorito:</span>
+              <span className="text-[#a855f7] font-black text-[7.5px]">
+                {mostPredictedScore.score} ({mostPredictedScore.percentage}%)
+              </span>
+            </div>
+          )}
         </div>
       )}
       
