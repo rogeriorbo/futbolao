@@ -73,14 +73,14 @@ import confetti from 'canvas-confetti';
 
 // --- Constants & Mock Data ---
 const RULES = [
-  { points: 25, label: "Placar exato", desc: "Acertou exatamente o placar do jogo." },
-  { points: 18, label: "Vencedor + gols do vencedor", desc: "Acertou quem venceu e quantos gols esse time marcou." },
-  { points: 15, label: "Vencedor + diferença de gols", desc: "Acertou quem venceu e a diferença de gols do jogo." },
-  { points: 12, label: "Vencedor + gols do perdedor", desc: "Acertou quem venceu e quantos gols o perdedor marcou." },
-  { points: 10, label: "Apenas vencedor correto", desc: "Acertou apenas quem venceu a partida." },
-  { points: 0, label: "Nenhum acerto", desc: "Não acertou nada no jogo." },
-  { points: 100, label: "Bônus: Campeão correto", desc: "Acertou quem será o campeão da Copa." },
-  { points: 50, label: "Bônus: Vice correto", desc: "Acertou quem será o vice-campeão da Copa." },
+  { points: 25, label: "Placar exato", desc: "Acertou o resultado final (placar) do jogo." },
+  { points: 18, label: "Vencedor + gols do vencedor", desc: "Acertou o vencedor e o número exato de gols marcados pelo time que venceu." },
+  { points: 15, label: "Vencedor + diferença de gols", desc: "Acertou o resultado (vitória ou empate) e a diferença exata de gols entre as equipes." },
+  { points: 12, label: "Vencedor + gols do perdedor", desc: "Acertou o vencedor e o número exato de gols marcados pelo time que perdeu." },
+  { points: 10, label: "Apenas vencedor correto", desc: "Acertou apenas o vencedor da partida ou se terminou em empate, sem acertar o placar." },
+  { points: 0, label: "Nenhum acerto", desc: "A aposta não corresponde ao resultado da partida." },
+  { points: 100, label: "Bônus: Campeão correto", desc: "Acertou quem se sagrou o campeão da Copa." },
+  { points: 50, label: "Bônus: Vice correto", desc: "Acertou quem se sagrou o vice-campeão da Copa." },
 ];
 
 // --- Components ---

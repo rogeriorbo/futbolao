@@ -225,6 +225,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               onChange={handleFileChange}
               disabled={uploadingImage}
             />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 text-[10px] font-black uppercase tracking-widest text-brand hover:text-brand/80 transition-colors"
+              disabled={uploadingImage}
+            >
+              Alterar Foto
+            </button>
           </div>
 
           <div className="space-y-4">
