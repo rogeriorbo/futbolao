@@ -124,9 +124,9 @@ export const PoolCard: React.FC<PoolCardProps> = ({ pool, isSelected, onClick, i
           <button 
               onClick={(e) => {
                   e.stopPropagation();
-                  const text = `Participe do meu bolão '${pool.name}' no App de Bolões! Use o código: ${pool.code}`;
+                  const text = `Participe do meu bolão '${pool.name}' no App de Bolões! Acesse: http://futbolao.deioinfo.com.br e use o código de acesso: ${pool.code}.`;
                   if (navigator.share) {
-                      navigator.share({ title: 'Bolão', text, url: window.location.href });
+                      navigator.share({ title: 'Bolão', text });
                   } else {
                       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
                   }
